@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
   "contentVersion": "1.0.0.0",
   "parameters": {
     "newVMName": {
@@ -19,25 +19,25 @@
     }
   },
   "variables": {
-    "labSubnetName": "[replace(variables('labVirtualNetworkName'), 'vnet-', 'snet-')]",
+    "labSubnetName": "[concat(variables('labVirtualNetworkName'), 'Subnet')]",
     "labVirtualNetworkId": "[resourceId('Microsoft.DevTestLab/labs/virtualnetworks', parameters('labName'), variables('labVirtualNetworkName'))]",
-    "labVirtualNetworkName": "[replace(parameters('labName'), 'dtl-', 'vnet-')]",
+    "labVirtualNetworkName": "[concat('Dtl', parameters('labName'))]",
     "vmId": "[resourceId ('Microsoft.DevTestLab/labs/virtualmachines', parameters('labName'), parameters('newVMName'))]",
     "vmName": "[concat(parameters('labName'), '/', parameters('newVMName'))]"
   },
   "resources": [
     {
-      "apiVersion": "2018-09-15",
+      "apiVersion": "2018-10-15-preview",
       "type": "Microsoft.DevTestLab/labs/virtualmachines",
       "name": "[variables('vmName')]",
       "location": "[resourceGroup().location]",
       "properties": {
         "labVirtualNetworkId": "[variables('labVirtualNetworkId')]",
-        "notes": "Windows Server 2016 Datacenter",
+        "notes": "Free License: SQL Server 2016 SP1 Express on Windows Server 2016",
         "galleryImageReference": {
-          "offer": "WindowsServer",
-          "publisher": "MicrosoftWindowsServer",
-          "sku": "2016-Datacenter",
+          "offer": "SQL2016SP1-WS2016",
+          "publisher": "MicrosoftSQLServer",
+          "sku": "Express",
           "osType": "Windows",
           "version": "latest"
         },
@@ -46,7 +46,7 @@
         "password": "[parameters('password')]",
         "isAuthenticationWithSshKey": false,
         "labSubnetName": "[variables('labSubnetName')]",
-        "disallowPublicIpAddress": true,
+        "disallowPublicIpAddress": false,
         "storageType": "Standard",
         "allowClaim": false
       }

@@ -1,0 +1,51 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+#Your build pipeline references a secret variable named ‘MachinePassword’. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it secret. See https://go.microsoft.com/fwlink/?linkid=865972
+variables:
+  ConfigurationLocation: '/samples/DevTestLabs/Scripts/ImageFactory/Configuration'
+  StandardTimeoutMinutes: '360'
+  ImageRetention: 1
+  # DevTestLabName: "Your DevTest Labs name is here"
+  # VMSize: "VMSize to create is here"
+  # MachineUserName: "Administrator name is here"
+  # MachinePassword: "Administrator password is here"
+  # SubscriptionId: "Your Subscription ID is here"
+
+# ----------------------------------
+# Make disabled event triggers
+# ----------------------------------
+pr: none
+trigger: none
+
+# ----------------------------------
+# Schedule
+# ----------------------------------
+# schedules:
+# - cron: "0 0 * * *"
+#   displayName: Daily midnight build
+#   branches:
+#     include:
+#     - master
+
+# ----------------------------------
+# Use Self-Hoste Pipeline Agent
+# ----------------------------------
+pool: DevTest Labs Image Factory - Windows
+
+steps:
+  - task: AzurePowerShell@4
+    timeoutInMinutes: 360
+    inputs:
+      azureSubscription: 'Resource Manager - rg-dtl-image-factory'
+      ScriptType: 'FilePath'
+      ScriptPath: 'samples/DevTestLabs/Scripts/ImageFactory/Scripts/MakeGoldenImageVMs.ps1'
+      ScriptArguments: '-ConfigurationLocation $(System.DefaultWorkingDirectory)$(ConfigurationLocation) -DevTestLabName $(DevTestLabName) -vmSize $(VMSize) -machineUserName $(MachineUserName) -machinePassword (ConvertTo-SecureString -string "$(MachinePassword)" -AsPlainText -Force) -StandardTimeoutMinutes $(StandardTimeoutMinutes)'
+      azurePowerShellVersion: 'LatestVersion'
+      FailOnStandardError: true
+      errorActionPreference: stop
+      workingDirectory: $(System.DefaultWorkingDirectory)
+      pwsh: true
+

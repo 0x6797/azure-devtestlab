@@ -29,7 +29,7 @@
 
 function makeUpdatedTemplateFile ($origTemplateFile, $outputFile)
 {
-    $armTemplate= ConvertFrom-Json -InputObject (gc $origTemplateFile -Raw -Encoding Ascii)
+    $armTemplate= ConvertFrom-Json -InputObject (Get-Content $origTemplateFile -Raw -Encoding Ascii)
 
     #add the Sysprep or deprovision artifact to the list of artifacts for the VM
     $newArtifact = @{}
@@ -44,13 +44,18 @@ function makeUpdatedTemplateFile ($origTemplateFile, $outputFile)
 
     $fullArtifactId = "[resourceId('Microsoft.DevTestLab/labs/artifactSources/artifacts', parameters('labName'), 'public repo', '$artifactName')]"
     $newArtifact.artifactId = $fullArtifactId
-    $existingArtifacts = $armTemplate.resources[0].properties.artifacts
-    if (!$existingArtifacts -or $existingArtifacts.Count -eq 0)
+    $existingArtifacts = $null
+    if ($null -ne ($armTemplate.resources[0].properties | Get-Member -MemberType NoteProperty -Name 'artifacts'))
+    {
+        $existingArtifacts = $armTemplate.resources[0].properties.artifacts
+    }
+
+    if (($null -eq $existingArtifacts) -or ($existingArtifacts.Count -eq 0))
     {
         Write-Output "$origTemplateFile has no artifacts. Adding the $artifactName artifact"
         $artifactCollection = New-Object System.Collections.ArrayList
         $artifactCollection.Add($newArtifact)
-        $armTemplate.resources[0].properties | Add-Member -Type NoteProperty -name 'artifacts' -Value $artifactCollection -Force
+        $armTemplate.resources[0].properties | Add-Member -Type NoteProperty -Name 'artifacts' -Value $artifactCollection -Force
     }
     elseif ($existingArtifacts[$existingArtifacts.count - 1].artifactId -eq $fullArtifactId)
     {
@@ -65,9 +70,12 @@ function makeUpdatedTemplateFile ($origTemplateFile, $outputFile)
     }
 
     Write-Output "Writing modified ARM template to $outputFile"
-    ($armTemplate | ConvertTo-Json -Depth 100 | % { [System.Text.RegularExpressions.Regex]::Unescape($_) }).Replace('\', '\\') | Out-File $outputFile
+    ($armTemplate | ConvertTo-Json -Depth 100 | ForEach-Object { [System.Text.RegularExpressions.Regex]::Unescape($_) }).Replace('\', '\\') | Out-File $outputFile
 
 }
+
+$DebugPreference = "SilentlyContinue" 
+Set-StrictMode -Version Latest
 
 Import-Module $ModulePath
 
@@ -76,14 +84,13 @@ LoadProfile
 Write-Output "Starting Deploy for $TemplateFilePath"
 
 #if the VM already exists then we fail out.
-$existingVms = Find-AzureRmResource -ResourceType "Microsoft.DevTestLab/labs/virtualMachines" -ResourceNameContains $DevTestLabName | Where-Object { $_.Name -eq "$DevTestLabName/$vmName"}
-if($existingVms.Count -ne 0){
+$existingVms = Get-AzResource -ResourceType "Microsoft.DevTestLab/labs/virtualMachines" -Name $DevTestLabName | Where-Object { $_.Name -eq "$DevTestLabName/$vmName"}
+if(($null -ne $existingVMs) -and ($existingVms.Count -ne 0)){
     Write-Error "Factory VM creation failed because there is an existing VM named $vmName in Lab $DevTestLabName"
-    return ""
 }
 else {
     $deployName = "Deploy-$vmName"
-    $ResourceGroupName = (Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}).ResourceGroupName
+    $ResourceGroupName = (Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}).ResourceGroupName
     
     if($includeSysprep)
     {
@@ -96,36 +103,28 @@ else {
         $updatedTemplateFilePath = $TemplateFilePath
     }
 
-    $vmDeployResult = New-AzureRmResourceGroupDeployment -Name $deployName -ResourceGroupName $ResourceGroupName -TemplateFile $updatedTemplateFilePath -labName $DevTestLabName -newVMName $vmName  -userName $machineUserName -password $machinePassword -size $vmSize
-    
+    $vmDeployResult = New-AzResourceGroupDeployment -Name $deployName -ResourceGroupName $ResourceGroupName -TemplateFile $updatedTemplateFilePath -labName $DevTestLabName -newVMName $vmName -userName $machineUserName -password $machinePassword -size $vmSize
+
     #delete the deployment information so that we dont use up the total deployments for this resource group
-    Remove-AzureRmResourceGroupDeployment -ResourceGroupName $ResourceGroupName -Name $deployName  -ErrorAction SilentlyContinue | Out-Null
+    Remove-AzResourceGroupDeployment -ResourceGroupName $ResourceGroupName -Name $deployName -ErrorAction SilentlyContinue | Out-Null
 
     if($vmDeployResult.ProvisioningState -eq "Succeeded"){
         Write-Output "Determining artifact status."
-        $existingVm = Find-AzureRmResource -ResourceType "Microsoft.DevTestLab/labs/virtualMachines" -ResourceNameContains $DevTestLabName | Where-Object { $_.Name -eq "$DevTestLabName/$vmName"}
 
         #Determine if artifacts succeeded
-        $filter = '$expand=Properties($expand=ComputeVm,NetworkInterface,Artifacts)'
-        $vmResource = Get-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs/virtualmachines' -Name $existingVm.Name -ResourceGroupName $existingVm.ResourceGroupName -ODataQuery $filter
+        $vmResource = Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs/virtualmachines' -ODataQuery "name EQ '$DevTestLabName/$vmName'" -ExpandProperties
         $existingVmArtStatus = $vmResource.Properties.ArtifactDeploymentStatus
 
         Write-Output 'Dumping status from all artifacts'
         Write-Output ('  ArtifactDeploymentStatus: ' + $existingVmArtStatus.deploymentStatus)
-        foreach($artifact in $vmResource.Properties.artifacts)
-        {
-            $artifactShortId = $artifact.artifactId.Substring($artifact.artifactId.LastIndexOf('/', $artifact.artifactId.LastIndexOf('/', $artifact.artifactId.LastIndexOf('/')-1)-1))    
-            $artifactStatus = $artifact.status
-            Write-Output "    Artifact result: $artifactStatus  $artifactShortId "
-        }
 
         if ($existingVmArtStatus.totalArtifacts -eq 0 -or $existingVmArtStatus.deploymentStatus -eq "Succeeded")
         {
             Write-Output "##[section]Successfully deployed $vmName from $imagePath"
             Write-Output "Stamping the VM $vmName with originalImageFile $imagePath"
 
-            $tags = $existingVm.Tags
-            if((get-command -Name 'New-AzureRmResourceGroup').Parameters["Tag"].ParameterType.FullName -eq 'System.Collections.Hashtable'){
+            $tags = $vmResource.Tags
+            if((Get-Command -Name 'New-AzResourceGroup').Parameters["Tag"].ParameterType.FullName -eq 'System.Collections.Hashtable'){
                 # Azure Powershell version 2.0.0 or greater - https://github.com/Azure/azure-powershell/blob/v2.0.1-August2016/documentation/release-notes/migration-guide.2.0.0.md#change-of-tag-parameters
                 $tags += @{ImagePath=$imagePath}
             }
@@ -135,9 +134,9 @@ else {
             }
 
             Write-Output "Getting resource ID from Existing Vm"
-            $vmResourceId = $existingVm.ResourceId 
+            $vmResourceId = $vmResource.ResourceId 
             Write-Output "Resource ID: $vmResourceId"
-            Set-AzureRmResource -ResourceId $vmResourceId -Tag $tags -Force | Out-Null
+            Set-AzResource -ResourceId $vmResourceId -Tag $tags -Force | Out-Null
         }
         else
         {
@@ -147,7 +146,7 @@ else {
             }
             Write-Error "##[error]Deploying VM artifacts failed. $vmName from $TemplateFilePath. Failure details follow:"
             $failedArtifacts = ($vmResource.Properties.Artifacts | Where-Object {$_.status -ne "Succeeded"})
-            if($failedArtifacts -ne $null)
+            if($null -ne $failedArtifacts)
             { 
                 foreach($failedArtifact in $failedArtifacts)
                 {
@@ -171,7 +170,7 @@ else {
             }
 
             Write-Output "Deleting VM $vmName after failed artifact deployment"
-            Remove-AzureRmResource -ResourceId $existingVm.ResourceId -ApiVersion 2016-05-15 -Force
+            Remove-AzResource -ResourceId $vmResource.ResourceId -ApiVersion 2016-05-15 -Force
         }
     }
     else {

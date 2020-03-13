@@ -1,8 +1,10 @@
 ﻿function SelectSubscription($subId){
     # switch to another subscription assuming it's not the one we're already on
-    if((Get-AzureRmContext).Subscription.Id -ne $subId){
+#-    if((Get-AzureRmContext).Subscription.Id -ne $subId){
+    if((Get-AzContext).Subscription.Id -ne $subId){
         Write-Output "Switching to subscription $subId"
-        Set-AzureRmContext -SubscriptionId $subId | Out-Null
+#-        Set-AzureRmContext -SubscriptionId $subId | Out-Null
+        Set-AzContext -SubscriptionId $subId | Out-Null
     }
 }
 
@@ -48,24 +50,24 @@ function ConvertTo-Object {
 }
 
 function SaveProfile {
-    $profilePath = Join-Path $PSScriptRoot "profile.json"
-
+    $profilePath = Join-Path ([System.IO.Path]::GetTempPath()) "profile.json"
     If (Test-Path $profilePath){
 	    Remove-Item $profilePath
     }
     
-    Save-AzureRmContext -Path $profilePath
+    Save-AzContext -Path $profilePath
 }
 
 function LoadProfile {
-    $scriptFolder = Split-Path $Script:MyInvocation.MyCommand.Path
-    Import-AzureRmContext -Path (Join-Path $scriptFolder "profile.json") | Out-Null
+    $scriptFolder = [System.IO.Path]::GetTempPath()
+    Import-AzContext -Path (Join-Path $scriptFolder "profile.json") | Out-Null
 }
 
 function deleteImage ($resourceGroupName, $resourceName)
 {
     Write-Output "##[section]Deleting Image: $resourceName"
-    Remove-AzureRmResource -ResourceName $resourceName -ResourceGroupName $resourceGroupName -ResourceType 'Microsoft.DevTestLab/labs/customImages' -ApiVersion '2016-05-15' -Force
+#-    Remove-AzureRmResource -ResourceName $resourceName -ResourceGroupName $resourceGroupName -ResourceType 'Microsoft.DevTestLab/labs/customImages' -ApiVersion '2016-05-15' -Force
+    Remove-AzResource -ResourceName $resourceName -ResourceGroupName $resourceGroupName -ResourceType 'Microsoft.DevTestLab/labs/customImages' -ApiVersion '2016-05-15' -Force
     Write-Output "##[section]Completed deleting $resourceName"
 }
 
@@ -91,14 +93,15 @@ function GetImageName ($imagePathValue)
 function GetLabStorageInfo ($lab)
 {
     $labRgName= $lab.ResourceGroupName
-    $sourceLab = Get-AzureRmResource -ResourceName $lab.Name -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs'
+#-    $sourceLab = Get-AzureRmResource -ResourceName $lab.Name -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs'
+    $sourceLab = Get-AzResource -ResourceName $lab.Name -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs'
     $storageAcctValue = $sourceLab.Properties.artifactsStorageAccount
     $storageAcctName = $storageAcctValue.Substring($storageAcctValue.LastIndexOf('/') + 1)
 
     $storageAcct = (Get-AzureRMStorageAccountKey  -StorageAccountName $storageAcctName -ResourceGroupName $labRgName)
     # Azure Powershell version 1.3.2 or below - https://msdn.microsoft.com/en-us/library/mt607145.aspx
     $storageAcctKey = $storageAcct.Key1
-    if ($storageAcctKey -eq $null) {
+    if ($null -eq $storageAcctKey) {
         # Azure Powershell version 1.4 or greater:
         $storageAcctKey = $storageAcct.Value[0]
     }
@@ -115,7 +118,7 @@ function EnsureRootContainerExists ($labStorageInfo)
     $storageContext = New-AzureStorageContext -StorageAccountName $labStorageInfo.storageAcctName -StorageAccountKey $labStorageInfo.storageAcctKey
     $rootContainerName = 'imagefactoryvhds'
     $rootContainer = Get-AzureStorageContainer -Context $storageContext -Name $rootContainerName -ErrorAction Ignore
-    if($rootContainer -eq $null) 
+    if($null -eq $rootContainer) 
     {
         Write-Output "Creating the $rootContainerName container in the target storage account"
         $rootContainer = New-AzureStorageContainer -Context $storageContext -Name $rootContainerName
@@ -124,16 +127,19 @@ function EnsureRootContainerExists ($labStorageInfo)
 
 function GetImageInfosForLab ($DevTestLabName) 
 {
-    $lab = Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
+#-    $lab = Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
+    $lab = Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
     $labRgName= $lab.ResourceGroupName
-    $sourceLab = Get-AzureRmResource -ResourceName $DevTestLabName -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs'
+#-    $sourceLab = Get-AzureRmResource -ResourceName $DevTestLabName -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs'
+    $sourceLab = Get-AzResource -ResourceName $DevTestLabName -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs'
     $storageAcctValue = $sourceLab.Properties.artifactsStorageAccount
     $storageAcctName = $storageAcctValue.Substring($storageAcctValue.LastIndexOf('/') + 1)
 
-    $storageAcct = (Get-AzureRMStorageAccountKey  -StorageAccountName $storageAcctName -ResourceGroupName $labRgName)
+#-    $storageAcct = (Get-AzureRMStorageAccountKey  -StorageAccountName $storageAcctName -ResourceGroupName $labRgName)
+    $storageAcct = (Get-AzStorageAccountKey  -StorageAccountName $storageAcctName -ResourceGroupName $labRgName)
     # Azure Powershell version 1.3.2 or below - https://msdn.microsoft.com/en-us/library/mt607145.aspx
     $storageAcctKey = $storageAcct.Key1
-    if ($storageAcctKey -eq $null) {
+    if ($null -eq $storageAcctKey) {
         # Azure Powershell version 1.4 or greater:
         $storageAcctKey = $storageAcct.Value[0]
     }
@@ -158,7 +164,7 @@ function GetImageInfosForLab ($DevTestLabName)
     $downloadedFileNames = Get-ChildItem -Path $downloadFolder
     foreach($file in $downloadedFileNames)
     {
-        $imageObj = (gc $file.FullName -Raw) | ConvertFrom-Json
+        $imageObj = (Get-Content $file.FullName -Raw) | ConvertFrom-Json
         $imageObj.timestamp = [DateTime]::Parse($imageObj.timestamp)
         $sourceImageInfos += $imageObj
     }

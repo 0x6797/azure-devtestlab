@@ -1,0 +1,23 @@
+{
+    // IntelliSense を使用して利用可能な属性を学べます。
+    // 既存の属性の説明をホバーして表示します。
+    // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "PowerShell: Launch Current File",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${file}",
+            "cwd": "${workspaceRoot}",
+            "args": [
+                "-ConfigurationLocation",   "./samples/DevTestLabs/Scripts/ImageFactory/Configuration",
+                "-DevTestLabName",          "dtl-image-factory",
+                "-VMSize",                  "Standard_B4ms",
+                "-MachineUserName",         "image-factory-user",
+                "-MachinePassword",         "(ConvertTo-SecureString -AsPlainText 'CFjNz4shYa63HASzDiZ7Q5LB7mHABM7E' -Force)",
+                "-StandardTimeoutMinutes",  "360"
+            ]
+        }
+    ]
+}

@@ -1,4 +1,5 @@
-﻿param
+﻿[CmdletBinding()]
+param
 (
     [Parameter(Mandatory=$true, HelpMessage="The location of the factory configuration files")]
     [string] $ConfigurationLocation,
@@ -20,8 +21,10 @@
 
     [Parameter(HelpMessage="Specifies whether or not to sysprep the created VMs")]
     [boolean] $includeSysprep = $true
-        
 )
+
+$DebugPreference = 'SilentlyContinue'
+Set-StrictMode -Version Latest 
 
 function IsVirtualMachineReady ($vmName, $status)
 {
@@ -99,27 +102,32 @@ foreach ($file in $files)
     $usedVmNames += $vmName
 
     Write-Output "Starting job to create a VM named $vmName for $imagePath"
-    $jobs += Start-Job -Name $file.Name -FilePath $makeVmScriptLocation -ArgumentList $modulePath, $file.FullName, $DevTestLabName, $vmName, $imagePath, $machineUserName, $machinePassword, $vmSize, $includeSysprep
+    $jobs += Start-Job -Name $vmName -FilePath $makeVmScriptLocation -ArgumentList $modulePath, $file.FullName, $DevTestLabName, $vmName, $imagePath, $machineUserName, $machinePassword, $vmSize, $includeSysprep
 }
 
 $jobCount = $jobs.Count
 Write-Output "Waiting for $jobCount VM creation jobs to complete"
-foreach ($job in $jobs){
-    $jobOutput = Receive-Job $job -Wait
-    Write-Output $jobOutput
-    $createdVMName = $jobOutput[$jobOutput.Length - 1]
-    if($createdVMName){
-        $createdVms.Add($createdVMName)
+
+Wait-Job -Job $jobs
+Receive-Job -Job $jobs
+
+foreach ($job in $jobs) {
+    if ("Completed" -ne $job.State) {
+        Write-Error ("Job : '" + $job.Name + "' is failed.")
+        Write-Error $job.Output
+        continue
     }
+
+    $createdVms.Add($job.Name)
 }
 Remove-Job -Job $jobs
 
 #get machines that show up in the VM blade so we can apply the GoldenImage Tag
-$allVms = Find-AzureRmResource -ResourceType "Microsoft.Compute/virtualMachines"
+$allVms = Get-AzResource -ResourceType "Microsoft.Compute/virtualMachines"
 
 for ($index = 0; $index -lt $createdVms.Count; $index++){
     $currentVmName = $createdVms[$index]
-    $currentVmValue = $allVms | Where-Object {$_.Name -eq $currentVmName -and $_.ResourceGroupName.StartsWith($DevTestLabName, "CurrentCultureIgnoreCase")}
+    $currentVmValue = $allVms | Where-Object {$_.Name -eq $currentVmName -and $_.ResourceGroupName.Contains($DevTestLabName, "CurrentCultureIgnoreCase")}
     if(!$currentVmValue){
         Write-Error "##[error]$currentVmName was not created successfully. It does not appear in the VM blade"
         continue;
@@ -132,7 +140,7 @@ for ($index = 0; $index -lt $createdVms.Count; $index++){
 
     while ($stopWaiting -eq $false) {
          
-        $vm = Get-AzureRmVM -ResourceGroupName $currentVmValue.ResourceGroupName -Name $currentVmValue.ResourceName -Status
+        $vm = Get-AzVM -ResourceGroupName $currentVmValue.ResourceGroupName -Name $currentVmValue.ResourceName -Status
         $currentTime = Get-Date
 
         if (IsVirtualMachineReady -vmName $vm.Name -status $vm.Statuses) {

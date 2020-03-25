@@ -1,12 +1,27 @@
 {
   "Labs": [
     {
-      "ResourceGroup": "<resource group name>",
-      "SubscriptionId": "<subscription ID that contains the lab>",
-      "LabName": "<Name of the DevTest Lab>",
+      "ResourceGroup": "rg-devtest-labs-001",
+      "SubscriptionId": "9818741f-421e-45eb-894d-c60fcd195b51",
+      "LabName": "dtl-devtest-labs-001",
       "ImagePaths": [
-        "Win2012R2/VS2015 Enterprise with Azure SDK.json",
         "Win2016"
+      ]
+    },
+    {
+      "ResourceGroup": "rg-devtest-labs-002",
+      "SubscriptionId": "9818741f-421e-45eb-894d-c60fcd195b51",
+      "LabName": "dtl-devtest-labs-002",
+      "ImagePaths": [
+        "Win2016/Datacenter.json"
+      ]
+    },
+    {
+      "ResourceGroup": "rg-devtest-labs-003",
+      "SubscriptionId": "9818741f-421e-45eb-894d-c60fcd195b51",
+      "LabName": "dtl-devtest-labs-003",
+      "ImagePaths": [
+        "Win2016/SQLServer 2016 Express.json"
       ]
     }
   ]

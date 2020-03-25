@@ -9,13 +9,15 @@ Import-Module $modulePath
 
 SaveProfile
 
-$lab = Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
+#- $lab = Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
+$lab = Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
 $labRgName= $lab.ResourceGroupName
 $labStorageInfo = GetLabStorageInfo $lab
 EnsureRootContainerExists $labStorageInfo
 $existingImageInfos = GetImageInfosForLab $DevTestLabName
 
-$labVMs = Get-AzureRmResource -ResourceName $DevTestLabName -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs/virtualMachines' -ApiVersion '2016-05-15' | Where-Object {$_.Properties.ProvisioningState -eq 'Succeeded'}
+#- $labVMs = Get-AzureRmResource -ResourceName $DevTestLabName -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs/virtualMachines' -ApiVersion '2016-05-15' | Where-Object {$_.Properties.ProvisioningState -eq 'Succeeded'}
+$labVMs = Get-AzResource -ResourceName $DevTestLabName -ResourceGroupName $labRgName -ResourceType 'Microsoft.DevTestLab/labs/virtualMachines' -ApiVersion '2016-05-15' | Where-Object {$_.Properties.ProvisioningState -eq 'Succeeded'}
 $jobs = @()
 $copyObjects = New-Object System.Collections.ArrayList
 
@@ -50,7 +52,8 @@ foreach($labVm in $labVMs)
 
     $fileId = ([Guid]::NewGuid()).ToString()
 
-    $computeVM = Get-AzureRmVM -Status | Where-Object -FilterScript {$_.Id -eq $labVM.Properties.computeId}
+#-    $computeVM = Get-AzureRmVM -Status | Where-Object -FilterScript {$_.Id -eq $labVM.Properties.computeId}
+    $computeVM = Get-AzVM -Status | Where-Object -FilterScript {$_.Id -eq $labVM.Properties.computeId}
     
     if(!$computeVM)
     {
@@ -120,19 +123,24 @@ $storeVHDBlock = {
     try
     {
         Write-Output "Getting SAS token for disk $($copyObject.computeDiskname) in resource group $($copyObject.computeRGName)"
-        $mdiskURL = (Grant-AzureRmDiskAccess -ResourceGroupName $copyObject.computeRGName -DiskName $copyObject.computeDiskname -Access Read -DurationInSecond 36000).AccessSAS
+#-        $mdiskURL = (Grant-AzureRmDiskAccess -ResourceGroupName $copyObject.computeRGName -DiskName $copyObject.computeDiskname -Access Read -DurationInSecond 36000).AccessSAS
+        $mdiskURL = (Grant-AzDiskAccess -ResourceGroupName $copyObject.computeRGName -DiskName $copyObject.computeDiskname -Access Read -DurationInSecond 36000).AccessSAS
 
-        $storageContext = New-AzureStorageContext -StorageAccountName $copyObject.storageAcctName -StorageAccountKey $copyObject.storageAcctKey
+#-        $storageContext = New-AzureStorageContext -StorageAccountName $copyObject.storageAcctName -StorageAccountKey $copyObject.storageAcctKey
+        $storageContext = New-AzStorageContext -StorageAccountName $copyObject.storageAcctName -StorageAccountKey $copyObject.storageAcctKey
     
         Write-Output "Starting vhd copy..."
-        $copyHandle = Start-AzureStorageBlobCopy -AbsoluteUri $mdiskURL -DestContainer 'imagefactoryvhds' -DestBlob $vhdFileName -DestContext $storageContext -Force
+#-        $copyHandle = Start-AzureStorageBlobCopy -AbsoluteUri $mdiskURL -DestContainer 'imagefactoryvhds' -DestBlob $vhdFileName -DestContext $storageContext -Force
+        $copyHandle = Start-AzStorageBlobCopy -AbsoluteUri $mdiskURL -DestContainer 'imagefactoryvhds' -DestBlob $vhdFileName -DestContext $storageContext -Force
 
         Write-Output ("Started copy of " + $copyObject.computeDiskname + " at " + (Get-Date -format "h:mm:ss tt"))
-        $copyStatus = $copyHandle | Get-AzureStorageBlobCopyState 
+#-        $copyStatus = $copyHandle | Get-AzureStorageBlobCopyState 
+        $copyStatus = $copyHandle | Get-AzStorageBlobCopyState 
         $statusCount = 0
 
         While($copyStatus.Status -eq "Pending"){
-            $copyStatus = $copyHandle | Get-AzureStorageBlobCopyState 
+#-            $copyStatus = $copyHandle | Get-AzureStorageBlobCopyState 
+            $copyStatus = $copyHandle | Get-AzStorageBlobCopyState 
             if($copyStatus.TotalBytes)
             {
                 [int]$perComplete = ($copyStatus.BytesCopied/$copyStatus.TotalBytes)*100
@@ -160,7 +168,8 @@ $storeVHDBlock = {
             Write-Output ("Successfully copied " + $copyObject.computeDiskname + " at " + (Get-Date -format "h:mm:ss tt"))
             
             #copy the companion .json file into the storage account next to the vhd file
-            Set-AzureStorageBlobContent -Context $storageContext -File $jsonFilePath -Container 'imagefactoryvhds'
+#-            Set-AzureStorageBlobContent -Context $storageContext -File $jsonFilePath -Container 'imagefactoryvhds'
+            Set-AzStorageBlobContent -Context $storageContext -File $jsonFilePath -Container 'imagefactoryvhds'
         }
         else
         {
@@ -179,7 +188,8 @@ $storeVHDBlock = {
     finally
     {
         Write-Output "Reverting lock on disk $($copyObject.computeDiskname) in resource group $($copyObject.computeRGName)"
-        Revoke-AzureRmDiskAccess -ResourceGroupName $copyObject.computeRGName -DiskName $copyObject.computeDiskname
+#-        Revoke-AzureRmDiskAccess -ResourceGroupName $copyObject.computeRGName -DiskName $copyObject.computeDiskname
+        Revoke-AzDiskAccess -ResourceGroupName $copyObject.computeRGName -DiskName $copyObject.computeDiskname
     }
 }
 

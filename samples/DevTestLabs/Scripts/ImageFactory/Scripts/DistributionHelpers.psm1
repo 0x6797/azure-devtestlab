@@ -98,7 +98,8 @@ function GetLabStorageInfo ($lab)
     $storageAcctValue = $sourceLab.Properties.artifactsStorageAccount
     $storageAcctName = $storageAcctValue.Substring($storageAcctValue.LastIndexOf('/') + 1)
 
-    $storageAcct = (Get-AzureRMStorageAccountKey  -StorageAccountName $storageAcctName -ResourceGroupName $labRgName)
+#-    $storageAcct = (Get-AzureRMStorageAccountKey  -StorageAccountName $storageAcctName -ResourceGroupName $labRgName)
+    $storageAcct = (Get-AzStorageAccountKey  -StorageAccountName $storageAcctName -ResourceGroupName $labRgName)
     # Azure Powershell version 1.3.2 or below - https://msdn.microsoft.com/en-us/library/mt607145.aspx
     $storageAcctKey = $storageAcct.Key1
     if ($null -eq $storageAcctKey) {
@@ -115,13 +116,16 @@ function GetLabStorageInfo ($lab)
 
 function EnsureRootContainerExists ($labStorageInfo)
 {
-    $storageContext = New-AzureStorageContext -StorageAccountName $labStorageInfo.storageAcctName -StorageAccountKey $labStorageInfo.storageAcctKey
+#-    $storageContext = New-AzureStorageContext -StorageAccountName $labStorageInfo.storageAcctName -StorageAccountKey $labStorageInfo.storageAcctKey
+    $storageContext = New-AzStorageContext -StorageAccountName $labStorageInfo.storageAcctName -StorageAccountKey $labStorageInfo.storageAcctKey
     $rootContainerName = 'imagefactoryvhds'
-    $rootContainer = Get-AzureStorageContainer -Context $storageContext -Name $rootContainerName -ErrorAction Ignore
+#-    $rootContainer = Get-AzureStorageContainer -Context $storageContext -Name $rootContainerName -ErrorAction Ignore
+    $rootContainer = Get-AzStorageContainer -Context $storageContext -Name $rootContainerName -ErrorAction Ignore
     if($null -eq $rootContainer) 
     {
         Write-Output "Creating the $rootContainerName container in the target storage account"
-        $rootContainer = New-AzureStorageContainer -Context $storageContext -Name $rootContainerName
+#-        $rootContainer = New-AzureStorageContainer -Context $storageContext -Name $rootContainerName
+        $rootContainer = New-AzStorageContainer -Context $storageContext -Name $rootContainerName
     }
 }
 
@@ -144,11 +148,13 @@ function GetImageInfosForLab ($DevTestLabName)
         $storageAcctKey = $storageAcct.Value[0]
     }
 
-    $storageContext = New-AzureStorageContext -StorageAccountName $storageAcctName -StorageAccountKey $storageAcctKey
+#-    $storageContext = New-AzureStorageContext -StorageAccountName $storageAcctName -StorageAccountKey $storageAcctKey
+    $storageContext = New-AzStorageContext -StorageAccountName $storageAcctName -StorageAccountKey $storageAcctKey
 
     $rootContainerName = 'imagefactoryvhds'
 
-    $jsonBlobs = Get-AzureStorageBlob -Context $storageContext -Container $rootContainerName -Blob '*json'
+#-    $jsonBlobs = Get-AzureStorageBlob -Context $storageContext -Container $rootContainerName -Blob '*json'
+    $jsonBlobs = Get-AzStorageBlob -Context $storageContext -Container $rootContainerName -Blob '*json'
 
     Write-Host "Downloading $($jsonBlobs.Length) json files from storage account"
     $downloadFolder = Join-Path $env:TEMP 'ImageFactoryDownloads'
@@ -157,7 +163,8 @@ function GetImageInfosForLab ($DevTestLabName)
         Remove-Item $downloadFolder -Recurse | Out-Null
     }
     New-Item -Path $downloadFolder -ItemType Directory | Out-Null
-    $jsonBlobs | Get-AzureStorageBlobContent -Destination $downloadFolder | Out-Null
+#-    $jsonBlobs | Get-AzureStorageBlobContent -Destination $downloadFolder | Out-Null
+    $jsonBlobs | Get-AzStorageBlobContent -Destination $downloadFolder | Out-Null
 
     $sourceImageInfos = @()
 

@@ -77,13 +77,13 @@ SelectSubscription $SubscriptionId
 
 SaveProfile
 
-$sourceLab = Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
+$sourceLab = Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
 $labStorageInfo = GetLabStorageInfo $sourceLab
 $sourceImageInfos = GetImageInfosForLab $DevTestLabName
 $thingsToCopy = New-Object System.Collections.ArrayList
 
 $labsList = Join-Path $ConfigurationLocation "Labs.json"
-$labInfo = ConvertFrom-Json -InputObject (gc $labsList -Raw)
+$labInfo = ConvertFrom-Json -InputObject (Get-Content $labsList -Raw)
 logMessageForUnusedImagePaths $labInfo.Labs $ConfigurationLocation
 logErrorForUnusedImages $labInfo.Labs $ConfigurationLocation
 
@@ -98,16 +98,16 @@ foreach ($targetLabInfo in $sortedLabList){
 
         if($copyToLab -eq $true) {
             SelectSubscription $targetLabInfo.SubscriptionId
-            $targetLabRG = (Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $targetLabName}).ResourceGroupName
+            $targetLabRG = (Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $targetLabName}).ResourceGroupName
             if(!$targetLabRG)
             {            
                 Write-Error ("Unable to find a lab named $targetLabName in subscription with id " + $targetLabInfo.SubscriptionId)
             }
 
-            $targetLab = Get-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' -ResourceName $targetLabName -ResourceGroupName $targetLabRG
+            $targetLab = Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' -ResourceName $targetLabName -ResourceGroupName $targetLabRG -ExpandProperties
             $targetLabStorageInfo = GetLabStorageInfo $targetLab
 
-            $existingTargetImage = Get-AzureRmResource -ResourceName $targetLabName -ResourceGroupName $targetLabRG -ResourceType 'Microsoft.DevTestLab/labs/customImages' -ApiVersion '2016-05-15' | Where-Object {$_.Name -eq $sourceImage.imageName}
+            $existingTargetImage = Get-AzResource -ResourceName $targetLabName -ResourceGroupName $targetLabRG -ResourceType 'Microsoft.DevTestLab/labs/customImages' -ApiVersion '2016-05-15' | Where-Object {$_.Name -eq $sourceImage.imageName}
             if($existingTargetImage){
                 Write-Output "$($sourceImage.imageName) already exists in $targetLabName and will not be overwritten"
                 continue;
@@ -134,7 +134,7 @@ foreach ($targetLabInfo in $sortedLabList){
                 targetStorageAccountName = $targetLabStorageInfo.storageAcctName
                 targetStorageKey = $targetLabStorageInfo.storageAcctKey
                 targetResourceGroup = $targetLabStorageInfo.resourceGroupName
-                targetSubscriptionId = $targetLab.SubscriptionId
+                targetSubscriptionId = $targetLabInfo.SubscriptionId
             }
             $thingsToCopy.Add($copyObject) | Out-Null
         }
@@ -150,18 +150,18 @@ $copyVHDBlock = {
     Import-Module $modulePath
     LoadProfile
     
-    $srcContext = New-AzureStorageContext -StorageAccountName $copyObject.sourceStorageAccountName -StorageAccountKey $copyObject.sourceStorageKey 
+    $srcContext = New-AzStorageContext -StorageAccountName $copyObject.sourceStorageAccountName -StorageAccountKey $copyObject.sourceStorageKey 
     $srcURI = $srcContext.BlobEndPoint + "imagefactoryvhds/" + $copyObject.vhdFileName
-    $destContext = New-AzureStorageContext -StorageAccountName $copyObject.targetStorageAccountName -StorageAccountKey $copyObject.targetStorageKey
-    New-AzureStorageContainer -Context $destContext -Name 'imagefactoryvhds' -ErrorAction Ignore
-    $copyHandle = Start-AzureStorageBlobCopy -srcUri $srcURI -SrcContext $srcContext -DestContainer 'imagefactoryvhds' -DestBlob $copyObject.vhdFileName -DestContext $destContext -Force
+    $destContext = New-AzStorageContext -StorageAccountName $copyObject.targetStorageAccountName -StorageAccountKey $copyObject.targetStorageKey
+    New-AzStorageContainer -Context $destContext -Name 'imagefactoryvhds' -ErrorAction Ignore
+    $copyHandle = Start-AzStorageBlobCopy -srcUri $srcURI -SrcContext $srcContext -DestContainer 'imagefactoryvhds' -DestBlob $copyObject.vhdFileName -DestContext $destContext -Force
 
     Write-Output ("Started copying " + $copyObject.vhdFileName + " to " + $copyObject.targetStorageAccountName + " at " + (Get-Date -format "h:mm:ss tt"))
-    $copyStatus = $copyHandle | Get-AzureStorageBlobCopyState 
+    $copyStatus = $copyHandle | Get-AzStorageBlobCopyState 
     $statusCount = 0
 
     While($copyStatus.Status -eq "Pending"){
-        $copyStatus = $copyHandle | Get-AzureStorageBlobCopyState 
+        $copyStatus = $copyHandle | Get-AzStorageBlobCopyState 
         [int]$perComplete = ($copyStatus.BytesCopied/$copyStatus.TotalBytes)*100
         Write-Progress -Activity "Copying blob..." -status "Percentage Complete" -percentComplete "$perComplete"
 
@@ -186,14 +186,14 @@ $copyVHDBlock = {
 
         $imagePath = $copyObject.imagePath
         $deployName = "Deploy-$imageName"
-        $deployResult = New-AzureRmResourceGroupDeployment -Name $deployName -ResourceGroupName $copyObject.targetResourceGroup -TemplateFile $templatePath -existingLabName $copyObject.targetLabName -existingVhdUri $vhdUri -imageOsType $copyObject.osType -isVhdSysPrepped $copyObject.isVhdSysPrepped -imageName $copyObject.imageName -imageDescription $copyObject.imageDescription -imagePath $imagePath
+        $deployResult = New-AzResourceGroupDeployment -Name $deployName -ResourceGroupName $copyObject.targetResourceGroup -TemplateFile $templatePath -existingLabName $copyObject.targetLabName -existingVhdUri $vhdUri -imageOsType $copyObject.osType -isVhdSysPrepped $copyObject.isVhdSysPrepped -imageName $copyObject.imageName -imageDescription $copyObject.imageDescription -imagePath $imagePath
 
         #delete the deployment information so that we dont use up the total deployments for this resource group
-        Remove-AzureRmResourceGroupDeployment -ResourceGroupName $copyObject.targetResourceGroup -Name $deployName  -ErrorAction SilentlyContinue | Out-Null
+        Remove-AzResourceGroupDeployment -ResourceGroupName $copyObject.targetResourceGroup -Name $deployName  -ErrorAction SilentlyContinue | Out-Null
 
         if($deployResult.ProvisioningState -eq "Succeeded"){
             Write-Output "Successfully deployed image. Deleting copied VHD"
-            Remove-AzureStorageBlob -Context $destContext -Container 'imagefactoryvhds' -Blob $copyObject.vhdFileName
+            Remove-AzStorageBlob -Context $destContext -Container 'imagefactoryvhds' -Blob $copyObject.vhdFileName
             Write-Output "Copied VHD deleted"
         }
         else {
@@ -247,15 +247,15 @@ foreach ($copyInfo in $thingsToCopy)
 {
     SelectSubscription $copyInfo.targetSubscriptionId
     #remove the root container from the target labs since we dont need it any more
-    $targetLab = Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $copyInfo.targetLabName}
+    $targetLab = Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $copyInfo.targetLabName}
     $targetStorageInfo = GetLabStorageInfo $targetLab
-    $storageContext = New-AzureStorageContext -StorageAccountName $targetStorageInfo.storageAcctName -StorageAccountKey $targetStorageInfo.storageAcctKey
+    $storageContext = New-AzStorageContext -StorageAccountName $targetStorageInfo.storageAcctName -StorageAccountKey $targetStorageInfo.storageAcctKey
     $rootContainerName = 'imagefactoryvhds'
-    $rootContainer = Get-AzureStorageContainer -Context $storageContext -Name $rootContainerName -ErrorAction Ignore
-    if($rootContainer -ne $null) 
+    $rootContainer = Get-AzStorageContainer -Context $storageContext -Name $rootContainerName -ErrorAction Ignore
+    if($null -ne $rootContainer) 
     {
         Write-Output "Deleting the $rootContainerName container in the target storage account"
-        Remove-AzureStorageContainer -Context $storageContext -Name $rootContainerName -Force
+        Remove-AzStorageContainer -Context $storageContext -Name $rootContainerName -Force
     }
 
 }

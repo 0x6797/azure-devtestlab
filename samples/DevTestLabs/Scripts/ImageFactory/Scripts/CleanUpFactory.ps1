@@ -7,7 +7,7 @@ $modulePath = Join-Path (Split-Path ($Script:MyInvocation.MyCommand.Path)) "Dist
 Import-Module $modulePath
 SaveProfile
 
-$allVms = Find-AzureRmResource -ResourceType "Microsoft.DevTestLab/labs/virtualMachines" -ResourceNameContains $DevTestLabName
+$allVms = (Get-AzResource -ResourceType "Microsoft.DevTestLab/labs/virtualMachines") | Where-Object { $_.Name.IndexOf($DevTestLabName.ToLower() + '/') -eq 0}
 $jobs = @()
 
 $deleteVmBlock = {
@@ -15,7 +15,7 @@ $deleteVmBlock = {
     Import-Module $modulePath
     LoadProfile
     Write-Output "##[section]Deleting VM: $vmName"
-    Remove-AzureRmResource -ResourceId $resourceId -ApiVersion 2016-05-15 -Force
+    Remove-AzResource -ResourceId $resourceId -ApiVersion 2019-10-01 -Force
     Write-Output "##[section]Completed deleting $vmName"
 }
 
@@ -33,7 +33,7 @@ foreach ($currentVm in $allVms){
     $factoryIgnoreTag = getTagValue $currentVm $ignoreTagName
     $imagePathTag = getTagValue $currentVm 'ImagePath'
     $vmName = $currentVm.ResourceName
-    $provisioningState = (Get-AzureRmResource -ResourceId $currentVm.ResourceId).Properties.ProvisioningState
+    $provisioningState = (Get-AzResource -ResourceId $currentVm.ResourceId).Properties.ProvisioningState
 
     if(($provisioningState -ne "Succeeded") -and ($provisioningState -ne "Creating")){
         #these VMs failed to provision. log an error to make sure they get attention from the lab owner then delete them

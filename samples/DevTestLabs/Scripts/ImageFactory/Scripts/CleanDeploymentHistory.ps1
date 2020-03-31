@@ -14,20 +14,20 @@ function CleanRGDeployments($resourceGroup, $modulePath)
         Param($modulePath, $subscriptionId, $rgName, $deployName)
         Import-Module $modulePath
         LoadProfile
-        Select-AzureRmSubscription -SubscriptionId $subscriptionId | Out-Null
+        Select-AzSubscription -SubscriptionId $subscriptionId | Out-Null
 
         Write-Output "  Deleting $deployName"
-        Remove-AzureRmResourceGroupDeployment -Name $deployName -ResourceGroupName $rgName | Out-Null
+        Remove-AzResourceGroupDeployment -Name $deployName -ResourceGroupName $rgName | Out-Null
     }
 
-    $subscriptionId = (Get-AzureRmContext).Subscription.Id
+    $subscriptionId = (Get-AzContext).Subscription.Id
     $dateCutoff = (Get-Date).AddDays(-15)
 
-    $allDeploys = Get-AzureRmResourceGroupDeployment -Id $resourceGroup.id
+    $allDeploys = Get-AzResourceGroupDeployment -Id $resourceGroup.ResourceId
 
     $deleteDeploys = $allDeploys | Where-Object {$_.ProvisioningState -eq 'Succeeded' -or $_.Timestamp -lt $dateCutoff}
 
-    Write-Output ("Deleting " + $deleteDeploys.Count + " of " + $allDeploys.Count + " deployments from " + $resourceGroup.Name)
+    Write-Output ("Deleting " + $deleteDeploys.Count + " of " + $allDeploys.Count + " deployments from " + $resourceGroup.ResourceGroupName)
     $copyCount = $deleteDeploys.Count
     $jobIndex = 0
 
@@ -56,7 +56,7 @@ $modulePath = Join-Path (Split-Path ($Script:MyInvocation.MyCommand.Path)) "Dist
 Import-Module $modulePath
 SaveProfile
 
-$resourceGroups = Find-AzureRmResourceGroup | Where-Object {$_.Name.StartsWith($DevTestLabName, 'CurrentCultureIgnoreCase')}
+$resourceGroups = Get-AzResourceGroup | Where-Object {$_.ResourceGroupName.Contains($DevTestLabName, 'CurrentCultureIgnoreCase')}
 foreach($resGroup in $resourceGroups)
 {
     # We have deployed a lot of artifacts. Remove those deployments so we dont hit the 800 deployment limit for our lab RGs

@@ -11,7 +11,7 @@ $modulePath = Join-Path (Split-Path ($Script:MyInvocation.MyCommand.Path)) "Dist
 Import-Module $modulePath
 
 $labsList = Join-Path $ConfigurationLocation "Labs.json"
-$labInfo = ConvertFrom-Json -InputObject (gc $labsList -Raw)
+$labInfo = ConvertFrom-Json -InputObject (Get-Content $labsList -Raw)
 $sortedLabList = $labInfo.Labs | Sort-Object {$_.SubscriptionId}
 Write-Output "Validating $($sortedLabList.Count) labs from Labs.json"
 
@@ -29,7 +29,8 @@ foreach ($selectedLab in $sortedLabList){
 
     # Get the list of images in the current lab
     SelectSubscription $selectedLab.SubscriptionId
-    $selectedLabRG = (Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $selectedLab.LabName}).ResourceGroupName
+#-    $selectedLabRG = (Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $selectedLab.LabName}).ResourceGroupName
+    $selectedLabRG = (Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $selectedLab.LabName}).ResourceGroupName
 
     if($selectedLabRG)
     {

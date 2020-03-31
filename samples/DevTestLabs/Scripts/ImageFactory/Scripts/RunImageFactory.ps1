@@ -5,8 +5,7 @@ $configurationFilesLocation = "<Local Directory that contains the configuration 
 $virtualmachineUsername = "adminuser"
 $virtualmachinePassword = "<a strong password>"
 
-Add-AzureRmAccount
-Select-AzureRmSubscription -SubscriptionId $subscriptionId
+Connect-AzAccount -Subscription $subscriptionId
 
 # Scrape source code control for json files + create all VMs discovered
 .\MakeGoldenImageVMs.ps1    -ConfigurationLocation $configurationFilesLocation `

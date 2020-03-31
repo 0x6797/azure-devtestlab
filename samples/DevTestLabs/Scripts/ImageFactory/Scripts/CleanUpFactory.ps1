@@ -15,7 +15,7 @@ $deleteVmBlock = {
     Import-Module $modulePath
     LoadProfile
     Write-Output "##[section]Deleting VM: $vmName"
-    Remove-AzResource -ResourceId $resourceId -ApiVersion 2019-10-01 -Force
+    Remove-AzResource -ResourceId $resourceId -ApiVersion 2018-09-15 -Force
     Write-Output "##[section]Completed deleting $vmName"
 }
 

@@ -67,7 +67,7 @@ function deleteImage ($resourceGroupName, $resourceName)
 {
     Write-Output "##[section]Deleting Image: $resourceName"
 #-    Remove-AzureRmResource -ResourceName $resourceName -ResourceGroupName $resourceGroupName -ResourceType 'Microsoft.DevTestLab/labs/customImages' -ApiVersion '2016-05-15' -Force
-    Remove-AzResource -ResourceName $resourceName -ResourceGroupName $resourceGroupName -ResourceType 'Microsoft.Compute/images' -ApiVersion '2019-12-01' -Force
+    Remove-AzResource -ResourceName $resourceName -ResourceGroupName $resourceGroupName -ResourceType 'Microsoft.Compute/images' -ApiVersion '2018-10-01' -Force
 #-    Remove-AzResource -ResourceName $resourceName -ResourceGroupName $resourceGroupName -ResourceType 'Microsoft.DevTestLab/labs/customImages' -ApiVersion '2019-10-01' -Force
     Write-Output "##[section]Completed deleting $resourceName"
 }

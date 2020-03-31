@@ -9,11 +9,11 @@ $ErrorActionPreference = 'Stop'
 $modulePath = Join-Path (Split-Path ($Script:MyInvocation.MyCommand.Path)) "DistributionHelpers.psm1"
 Import-Module $modulePath
 
-$sourceLab = Find-AzureRmResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
+$sourceLab = Get-AzResource -ResourceType 'Microsoft.DevTestLab/labs' | Where-Object { $_.Name -eq $DevTestLabName}
 
 if(!$sourceLab)
 {
-    Write-Error "Unable to find a lab named $DevTestLabName in $((Get-AzureRmContext).Subscription.Name)"
+    Write-Error "Unable to find a lab named $DevTestLabName in $((Get-AzContext).Subscription.Name)"
 }
 
 $labStorageInfo = GetLabStorageInfo $sourceLab

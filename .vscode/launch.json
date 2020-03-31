@@ -12,7 +12,7 @@
             "script": "${file}",
             "cwd": "${workspaceRoot}",
             "args": [
-                "-ConfigurationLocation",  "samples/DevTestLabs/Scripts/ImageFactory/Configuration"
+                "-DevTestLabName",  "dtl-image-factory"
             ]
         }
     ]

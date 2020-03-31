@@ -98,7 +98,7 @@ foreach ($file in $files)
     $output += "<tr>"
 
     # Pull out the interesting bits from the ARM template (json format)
-    $imageDetails = ConvertFrom-Json -InputObject (gc $file.FullName -Raw)
+    $imageDetails = ConvertFrom-Json -InputObject (Get-Content $file.FullName -Raw)
     $imageDescription = $imageDetails.resources[0].properties.notes
     $baseImageOffer = $imageDetails.resources[0].properties.galleryImageReference.offer
     $baseImageSku = $imageDetails.resources[0].properties.galleryImageReference.sku

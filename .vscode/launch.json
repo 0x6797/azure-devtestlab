@@ -12,7 +12,10 @@
             "script": "${file}",
             "cwd": "${workspaceRoot}",
             "args": [
-                "-DevTestLabName",          "'dtl-image-factory'"
+                "-ConfigurationLocation",  "samples/DevTestLabs/Scripts/ImageFactory/Configuration",
+                "-SubscriptionId",         "9818741f-421e-45eb-894d-c60fcd195b51",
+                "-DevTestLabName",          "'dtl-image-factory'",
+                "-ImagesTosave",            "0"
             ]
         }
     ]
